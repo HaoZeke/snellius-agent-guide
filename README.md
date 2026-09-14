@@ -1,6 +1,6 @@
 # Snellius guidance for coding agents
 
-This guide helps Codex, Claude Code, OpenCode and Pi use Snellius without running heavy work on shared login nodes.
+Practical guidance for using Codex, Claude Code, OpenCode and Pi agents optimally on Snellius supercomputer by SURF.
 
 ## Copy and paste
 
@@ -30,6 +30,8 @@ The setup adds the short rules in `instructions.md` to:
 - Pi: `~/.pi/agent/AGENTS.md`
 
 It preserves existing content and creates a `.bak` copy when needed. The rules tell each agent to read `snellius.md` directly from the clone; no shell settings or jobs are changed.
+
+Agents load these user-wide Snellius instructions together with project instructions; a project file does not normally skip the global file. Codex, OpenCode and Pi use project `AGENTS.md`; Claude Code uses project `CLAUDE.md` (which can import `AGENTS.md`). Project guidance should not weaken the host-level Snellius constraints.
 
 Start a new agent session after installation. To update the guide later:
 

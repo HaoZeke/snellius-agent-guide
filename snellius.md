@@ -4,16 +4,16 @@ This guide helps users and coding agents make effective use of Snellius and its 
 
 ## Shared-cluster rules
 
-- Check `hostname` before running work. `int3`–`int6` are shared interactive/login nodes for editing, lightweight development (including running agents), inspection and job submission. Substantial RAM/CPU use, resource-intensive GPU work, or workloads over 10 minutes must use the Slurm queue; short runtime does not exempt heavy work.
-- Long-running login-node processes that are not whitelisted are automatically force-killed (user-supplied policy; exact threshold/whitelist unknown). Do not assume tmux or an agent process is exempt.
+- Check `hostname` before running work. `int4`–`int6` are shared interactive/login nodes for editing, lightweight development (including running agents), inspection and job submission. `int3` has is for similar interactive GPU-based development. Substantial RAM/CPU use, resource-intensive GPU work, or workloads over 10 minutes must use the Slurm queue; short runtime does not exempt heavy work.
+- Long-running or resource-intensive login-node processes that are not whitelisted are automatically force-killed.
 - Never use `watch -n` with an interval below 2 seconds. Run quota/accounting commands only when needed; reuse recent results and do not put them in repeated polling or `watch` loops.
 - Use scratch/project space for large or parallel job I/O, not `$HOME`. Use `$TMPDIR` for temporary job data, not `/tmp` or `/var/tmp`: filling system directories can disrupt other users and the OS.
 
 ## Software
 
-- OS: RHEL; check `/etc/os-release` for the version. Lightweight environment checks can run on login nodes: `module list`, `nvcc --version` if installed, and `nvidia-smi` on GPU-equipped `int3`. Check the actual job/container environment too; the CUDA version shown by `nvidia-smi` is driver compatibility, not the installed toolkit version.
-- Modules are supported: select a stack with `module load 2024` or `module load 2026`, then load a compatible package, e.g. `module load NCCL/2.26.6-GCCcore-14.2.0-CUDA-12.8.0` (availability depends on the stack).
-- Apptainer is recommended. Existing vLLM containers: `/projects/2/managed_datasets/containers/vllm/`. You may build or pull your own containers; do so in a Slurm job on `rome` or `staging`. Cache/temp setup is in Environment setup below; `/dev/shm` is RAM-backed, so allow sufficient job memory.
+- OS: RHEL; check `/etc/os-release` for the version. Lightweight environment checks can run on login nodes: `module list`, `nvcc --version`, and `nvidia-smi` on GPU-equipped `int3`.
+- Modules are supported: select a stack with `module load 2024` or `module load 2025`, then load a compatible package, e.g. `module load NCCL/2.26.6-GCCcore-14.2.0-CUDA-12.8.0` (availability depends on the stack).
+- Apptainer is recommended. For example existing vLLM containers: `/projects/2/managed_datasets/containers/vllm/`. You may build or pull your own containers; do so in a Slurm job on `rome` or `staging`. Cache/temp setup is in Environment setup below; `/dev/shm` is RAM-backed, so allow sufficient job memory.
 - Prefer `uv` for Python environment management over manually managed virtual environments. Conda is discouraged; use modules or `pixi` instead.
 
 ## Filesystems
@@ -22,7 +22,7 @@ This guide helps users and coding agents make effective use of Snellius and its 
 |---|---|---|---|
 | `$HOME` | work environment; shared across nodes | 200 GiB; 1 million files | nightly backup; home expires 15 weeks after project expiration |
 | `/projects/<name>` | persistent logs, final project artefacts and shared project I/O | project-dependent, per group | no backup; inaccessible at agreed end date, deletion after 4-week grace period |
-| `/scratch-shared/$USER` | temporary/preprocessed files and downloaded Hugging Face model checkpoints; shared GPFS | combined scratch quota below | no backup; purged after 2 weeks (14 days) without content modification |
+| `/scratch-shared/$USER` | temporary/preprocessed files and for example downloaded Hugging Face model checkpoints; shared GPFS | combined scratch quota below | no backup; purged after 2 weeks (14 days) without content modification |
 | `/scratch-local/$USER` | node-specific view on shared GPFS, **not physical local disk** | combined scratch quota below | no backup; contents unchanged for 6 days are deleted |
 | `/scratch-node/<user-specific>` | actual node-local NVMe; use `$TMPDIR` | allocation-dependent disk share | no backup; deleted at job end |
 | `/archive/$USER` | long-term tape storage; login/staging access | by request | nightly backup; project duration |
@@ -42,7 +42,8 @@ This guide helps users and coding agents make effective use of Snellius and its 
 
 ## Data transfer
 
-- Run bulk data transfers and transfers involving many tiny files in a `staging` job; resources/rates are listed below. External connectivity and transfer limits are unverified; check only when needed.
+- Login and compute nodes allow both inbound and outbound network connections (open ingress and egress).
+- Run bulk data transfers and transfers involving many tiny files in a `staging` job; resources/rates are listed below.
 
 ## Batch system and hardware
 
@@ -59,16 +60,15 @@ Partitions, walltimes and SBU weights: SURF "Snellius partitions" docs, as of 20
 | `staging` | service, SMT 32 threads, 224 GiB | 10 | 1 thread + 7 GiB | 2.0 per thread |
 
 - CPUs: H100 nodes use dual AMD EPYC 9334; A100 nodes dual Intel Xeon Platinum 8360Y. Rome thin/fat/high-memory nodes use dual AMD EPYC 7H12; Genoa thin/fat nodes dual AMD EPYC 9654.
-- InfiniBand fabric: H100 nodes 4× NDR200 ConnectX-7; A100 nodes 2× HDR200 ConnectX-6; Rome/high-memory/service nodes HDR100; Genoa nodes NDR ConnectX-7 (200 Gbps within a rack, 100 Gbps outside). Existing configs use `NCCL_SOCKET_IFNAME=eno2np0`; verify before reusing.
+- InfiniBand fabric: H100 nodes 4× NDR200 ConnectX-7; A100 nodes 2× HDR200 ConnectX-6; Rome/high-memory/service nodes HDR100; Genoa nodes NDR ConnectX-7 (200 Gbps within a rack, 100 Gbps outside).
 - `himem_4tb` / `himem_8tb`: minimum 16 cores + 480 / 960 GiB; 2.0 / 3.0 SBU per core-hour; 2 nodes each.
 - `gpu_mig`: minimum 1 A100 MIG slice + 9 cores + 60 GiB; 64 SBU per slice-hour.
 - `gpu_vis`: same minimum allocation/rate as `gpu_a100`; `cbuild`: same as `staging`.
 - Max walltime: 120 h on all partitions (`gpu_vis`: 24 h).
-- Jobs of ≤ 1 h on thin, fat and GPU partitions run on dedicated short-job nodes: shorter wait, good for
-  smoke tests. There are few of them, so not for jobs with many nodes.
+- Jobs of ≤ 1 h on thin, fat and GPU partitions run on dedicated short-job nodes: shorter wait, good for smoke tests.
 - Available RAM in the table is what a job can request (less than the node's total).
-- Node counts vary with maintenance and partition membership; use `sinfo` for current availability and node names. Check `sinfo --version` if needed.
-- Inspect your jobs with `squeue --me`; cancel only explicit job IDs verified to belong to you.
+- Node counts vary with maintenance and partition membership; use `sinfo` for current availability and node names.
+- Inspect your jobs with `squeue`.
 - Interactive work: obtain a Slurm allocation with `salloc` / `srun --pty`; partition/resource flags depend on the workload.
 
 ### int3 interactive development
@@ -92,23 +92,26 @@ Put these exports in `~/.bashrc` for interactive use, or in a small environment 
 
 ```bash
 CACHE_DIR="/scratch-shared/$USER/cache"
+
+# When working with Hugging Face
 export HF_HOME="/scratch-shared/$USER/hf"
 export HF_TOKEN_PATH="$HOME/.cache/huggingface/token"
+
+# When working with Python
 export PIP_CACHE_DIR="$CACHE_DIR/pip"
 export UV_CACHE_DIR="$CACHE_DIR/uv"
-export TRITON_CACHE_DIR="$CACHE_DIR/triton"
-export TORCH_EXTENSIONS_DIR="$CACHE_DIR/torch_extensions"
+
+# When working with Apptainer
 export APPTAINER_CACHEDIR="/scratch-shared/$USER/"
 export APPTAINER_TMPDIR="/dev/shm/$USER/"
+mkdir -p $APPTAINER_TMPDIR
 ```
 
-- HF downloads/caches stay on scratch; the token stays in home. These scratch caches may be purged and must be rebuildable.
 - Batch shells may not read `~/.bashrc`; inherit the exported variables or explicitly source the environment file. Keep module selection and allocation-dependent thread settings in jobs.
-- Before using Apptainer, run `mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"` on the node running it; `/dev/shm` is node-local. Keep this setup step out of routine shell startup.
 
 ## Single-GPU example
 
-Run from a persistent working directory; replace image/model placeholders. Apply Environment setup above and make Apptainer available before running the workload. This requests one H100 allocation; the application must fit its GPU memory. No `--exclusive` needed.
+Run from a persistent working directory; replace image/model placeholders. Apply Environment setup above and make Apptainer available before running the workload. This requests one H100 allocation; the application must fit its GPU memory.
 
 ```bash
 #!/bin/bash
