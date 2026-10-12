@@ -40,3 +40,5 @@ ljos remember 'Sourcing the EESSI init overwrites a shell variable named arch. P
 ljos remember 'Snellius staging nodes run Python 3.9. A Snakemake 9 coordinator uses the EESSI compat-layer python3, which has pip and needs no Lmod.'
 ljos remember 'A Snakemake Slurm rule asks one task, cpus_per_task equal to threads, and one node. Sixteen one-cpu tasks spread across nodes.'
 ljos remember 'Snellius Lmod refuses a bare module name such as Python after the EESSI init. Load the module with its full version string.'
+ljos remember 'A one-task Slurm job gives PRRTE one slot, so a test suite that mpiruns four ranks fails. Export the rmaps oversubscribe policy in build jobs.'
+ljos remember 'EESSI-extend reads EESSI_USER_INSTALL at module load. Export and create the prefix before the load, or the install lands in home.'
